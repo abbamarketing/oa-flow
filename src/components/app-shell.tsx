@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import {
   LayoutDashboard,
@@ -9,6 +10,7 @@ import {
   LogOut,
   Menu,
   Plus,
+  ShieldCheck,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthSession } from "@/hooks/use-auth-session";
@@ -24,10 +26,26 @@ const NAV = [
   { to: "/kanban", label: "Fluxo", icon: Layers },
 ] as const;
 
+const ADMIN_NAV = { to: "/admin", label: "Admin", icon: ShieldCheck } as const;
+
 export function AppShell({ children }: { children: ReactNode }) {
   const { user } = useAuthSession();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { data: isAdmin = false } = useQuery({
+    queryKey: ["my-admin-role", user?.id],
+    queryFn: async () => {
+      if (!user) return false;
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+      return Boolean(data);
+    },
+    enabled: Boolean(user),
+  });
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -46,9 +64,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     </Link>
   );
 
+  const items = isAdmin ? [...NAV, ADMIN_NAV] : NAV;
+
   const NavLinks = ({ onNavigate }: { onNavigate?: () => void }) => (
     <nav className="flex flex-col gap-1">
-      {NAV.map((item) => (
+      {items.map((item) => (
         <Link
           key={item.to}
           to={item.to}
